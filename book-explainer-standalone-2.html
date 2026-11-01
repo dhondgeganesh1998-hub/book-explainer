@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Book Explainer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{--bg:#eef2f6;--card:#fff;--ink:#14213d;--mut:#5b6b82;--line:#d3dbe6;--acc:#f2b705;--accink:#14213d;--chip:#e3e9f1;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1626;--card:#16223a;--ink:#e8eef8;--mut:#93a4bf;--line:#2a3a58;--chip:#223250;--err:#ff8a80;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "IBM Plex Sans",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:640px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 14px 80px}
+h1{font-size:22px;margin:4px 0 2px;font-weight:600}
+.sub{color:var(--mut);font-size:14px;margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--mut);margin:0 0 4px}
+input,select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+.g{margin-top:10px}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 14px;background:var(--acc);color:var(--accink);cursor:pointer;min-height:44px}
+button.sec{background:var(--chip);color:var(--ink)}
+button:disabled{opacity:.5}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{background:var(--chip);color:var(--ink);padding:8px 12px;border-radius:99px;font-weight:500;font-size:14px;min-height:36px}
+.chip.on{background:var(--ink);color:var(--bg)}
+.file{display:block;border:2px dashed var(--line);border-radius:12px;padding:22px 12px;text-align:center;color:var(--mut);cursor:pointer}
+.file b{color:var(--ink);display:block;font-size:17px}.file input{display:none}
+.bar{height:4px;background:var(--line);border-radius:4px;margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--acc)}
+.small{font-size:13px;color:var(--mut)}
+.err{color:var(--err);font-size:14px;margin-top:8px}
+a{color:inherit}
+#out{font:17px/1.65 "Source Serif 4",Georgia,serif}
+#out h2{font:600 19px/1.3 "IBM Plex Sans",sans-serif;margin:20px 0 6px;padding-top:12px;border-top:1px solid var(--line)}
+#out h2:first-child{border-top:0;margin-top:0;padding-top:0}
+#out h3{font:600 16px/1.3 "IBM Plex Sans",sans-serif;margin:14px 0 4px}
+#out p{margin:8px 0}#out ul,#out ol{padding-left:22px;margin:8px 0}#out li{margin:4px 0}
+#out code{font:14px ui-monospace,Menlo,monospace;background:var(--chip);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+.q{background:var(--chip);border-radius:10px;padding:8px 12px;margin:14px 0 8px;font:500 15px "IBM Plex Sans",sans-serif}
+details summary{cursor:pointer;font-weight:600;min-height:32px}
+canvas{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px;margin-top:8px}
+</style></head><body><main>
+<h1>Book Explainer</h1>
+<p class="sub">Upload your M.Tech book or IS code PDF, pick a page or topic, and study it with explanations, derivations and practice.</p>
+
+<details class="card" id="setup"><summary>Setup: free Gemini key</summary>
+  <p class="small">1. Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, sign in, tap Create API key (free, no card).<br>2. Paste it below and tap Save. It stays on this device only.</p>
+  <label for="key">Gemini API key</label><input id="key" type="password" autocomplete="off" placeholder="AIza…">
+  <div class="g"><label for="model">Model</label><input id="model" value="gemini-3.8-flash"></div>
+  <p class="small">If you see a “model not found” error, try <code>gemini-2.5-flash</code>.</p>
+  <button id="save" class="g">Save</button>
+</details>
+
+<div class="card">
+  <label class="file"><input type="file" id="f" accept="application/pdf,.pdf"><b id="fname">Choose PDF</b><span id="fmeta">Book chapters, IS codes… up to ~20&nbsp;MB</span></label>
+  <div class="bar" id="bar" hidden><i id="barI"></i></div>
+  <div class="small g" id="idx"></div>
+</div>
+
+<div class="card" id="ctl" hidden>
+  <div class="row">
+    <div><label for="pg">Page number</label><input id="pg" inputmode="numeric" placeholder="e.g. 45 or 45-47"></div>
+    <div><label for="off">Book page 1 is PDF page</label><input id="off" inputmode="numeric" value="1"></div>
+  </div>
+  <div class="g"><label for="tp">Clause, topic or point (optional)</label><input id="tp" placeholder="e.g. 26.5.1.1 or moment distribution"></div>
+  <div class="row g"><button class="sec" id="find">Find pages</button><button id="go">Explain</button></div>
+  <div class="chips" id="hits"></div>
+  <div class="g"><label>Level</label><div class="chips" id="modes" style="margin-top:0"></div></div>
+  <div class="g"><label for="lang">Language</label>
+    <select id="lang"><option>English</option><option>Hinglish (Hindi in English letters)</option><option>हिन्दी</option><option>मराठी</option></select></div>
+  <label class="g" style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px"><input type="checkbox" id="vis" checked style="width:auto"> Also read the page as an image (better for equations and figures)</label>
+  <details class="g" id="prev"><summary>Check the page</summary><canvas id="cv"></canvas></details>
+</div>
+
+<div class="card" id="res" hidden>
+  <div id="out" aria-live="polite"></div>
+  <div class="err" id="err" role="alert"></div>
+  <div id="fu" hidden><div class="chips" id="acts"></div>
+    <div class="row g"><input id="q" placeholder="Ask a follow-up…"><button id="ask" style="flex:0 0 auto">Ask</button></div>
+    <button class="sec g" id="copy">Copy all</button></div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const MODES={Beginner:"The reader is a beginner. Use plain words, define every term and symbol, build up from basics, use everyday analogies.",
+"M.Tech":"The reader is an M.Tech structural engineering student learning from this book. Be rigorous but clear: build intuition first, then the mathematics, with derivations, assumptions, limits of applicability, and links to related theory and IS code clauses.",
+"Revision":"The reader is revising before an exam. Be concise and crisp: key definitions, equations, and must-remember points, with minimal prose.",
+"Site engineer":"The reader is a practising site engineer. Emphasise what to do on site, drawing/detailing implications, checks, and common mistakes."};
+let mode="M.Tech",pdf=null,texts=[],idxDone=null,hist=[],ctrl=null,fileName="";
+const store={get:k=>{try{return localStorage.getItem(k)||""}catch(e){return ""}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+$("key").value=store.get("gk");if(store.get("gm"))$("model").value=store.get("gm");
+$("setup").open=!$("key").value;
+$("save").onclick=()=>{store.set("gk",$("key").value.trim());store.set("gm",$("model").value.trim());$("setup").open=false};
+try{pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"}catch(e){}
+for(const m in MODES){const b=document.createElement("button");b.className="chip"+(m===mode?" on":"");b.textContent=m;b.onclick=()=>{mode=m;[...$("modes").children].forEach(c=>c.classList.toggle("on",c===b))};$("modes").append(b)}
+
+$("f").onchange=async e=>{const file=e.target.files[0];if(!file)return;
+  fileName=file.name;$("fname").textContent=file.name;$("fmeta").textContent="Reading…";$("err").textContent="";
+  try{if(typeof pdfjsLib==="undefined")throw new Error("pdf.js did not load. Check your internet and reload.");
+    const buf=await file.arrayBuffer();pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    $("fmeta").textContent=pdf.numPages+" pages";$("ctl").hidden=false;texts=new Array(pdf.numPages+1).fill(null);hist=[];
+    idxDone=index();renderPrev()
+  }catch(x){$("fmeta").textContent="Could not open this PDF. "+(x.message||"");console.error(x)}};
+async function pageText(n){if(texts[n]!==null)return texts[n];
+  const p=await pdf.getPage(n),c=await p.getTextContent();let s="";
+  for(const it of c.items){s+=it.str+(it.hasEOL?"\n":" ")}
+  return texts[n]=s.replace(/[ \t]+/g," ").trim()}
+async function index(){$("bar").hidden=false;let empty=0;
+  for(let i=1;i<=pdf.numPages;i++){const t=await pageText(i);if(t.length<30)empty++;
+    $("barI").style.width=(100*i/pdf.numPages)+"%";$("idx").textContent="Indexing page "+i+" of "+pdf.numPages}
+  $("bar").hidden=true;
+  $("idx").textContent=empty>pdf.numPages*.6?"This looks scanned. Explaining will read the page as an image; search won’t work.":"Ready. Search and explain work on all "+pdf.numPages+" pages."}
+function parsePages(s){const out=new Set();
+  for(const part of s.split(/[,\s]+/).filter(Boolean)){const m=part.match(/^(\d+)(?:-(\d+))?$/);if(!m)continue;
+    const a=+m[1],b=+(m[2]||m[1]);for(let i=a;i<=Math.min(b,a+3);i++)out.add(i)}
+  return [...out].slice(0,4)}
+const offset=()=>(parseInt($("off").value)||1)-1;
+async function renderPrev(){const n=Math.min((parsePages($("pg").value)[0]||1)+offset(),pdf.numPages);
+  try{const p=await pdf.getPage(n),v=p.getViewport({scale:1.2}),c=$("cv");c.width=v.width;c.height=v.height;
+    await p.render({canvasContext:c.getContext("2d"),viewport:v}).promise}catch(e){}}
+$("pg").onchange=$("off").onchange=()=>pdf&&renderPrev();
+function hitsFor(q){q=q.toLowerCase();const h=[];
+  for(let i=1;i<=pdf.numPages;i++){const t=(texts[i]||"").toLowerCase();let c=0,k=-1;while((k=t.indexOf(q,k+1))>=0&&c<50)c++;if(c)h.push([i,c])}
+  return h.sort((a,b)=>b[1]-a[1])}
+$("find").onclick=async()=>{const q=$("tp").value.trim();$("hits").innerHTML="";if(!q||!pdf)return;
+  await idxDone;const h=hitsFor(q);
+  if(!h.length){$("hits").innerHTML='<span class="small">No match. Try another word or the clause number.</span>';return}
+  h.slice(0,10).forEach(([i,c])=>{const b=document.createElement("button");b.className="chip";b.textContent="PDF p."+i+" ("+c+")";
+    b.onclick=()=>{$("pg").value=i-offset();renderPrev();$("prev").open=true};$("hits").append(b)})};
+
+async function pageB64(n){const p=await pdf.getPage(n),v=p.getViewport({scale:1.6}),c=document.createElement("canvas");
+  c.width=v.width;c.height=v.height;await p.render({canvasContext:c.getContext("2d"),viewport:v}).promise;
+  return c.toDataURL("image/jpeg",.8).split(",")[1]}
+function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function md(s){const inl=t=>esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`(.+?)`/g,"<code>$1</code>");
+  let h="",list=null;const close=()=>{if(list){h+="</"+list+">";list=null}};
+  for(const l of s.split("\n")){let m;
+    if(m=l.match(/^#{1,2}\s+(.*)/)){close();h+="<h2>"+inl(m[1])+"</h2>"}
+    else if(m=l.match(/^#{3,}\s+(.*)/)){close();h+="<h3>"+inl(m[1])+"</h3>"}
+    else if(m=l.match(/^\s*[-*•]\s+(.*)/)){if(list!=="ul"){close();h+="<ul>";list="ul"}h+="<li>"+inl(m[1])+"</li>"}
+    else if(m=l.match(/^\s*\d+[.)]\s+(.*)/)){if(list!=="ol"){close();h+="<ol>";list="ol"}h+="<li>"+inl(m[1])+"</li>"}
+    else if(!l.trim()){close()}else{close();h+="<p>"+inl(l)+"</p>"}}
+  close();return h}
+
+async function geminiOnce(contents,onText,model){
+  const key=$("key").value.trim();
+  if(!key){$("setup").open=true;throw new Error("Add your Gemini API key in Setup first.")}
+  ctrl&&ctrl.abort();ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),90000);
+  const base="https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model);
+  const opts=()=>({method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({contents,generationConfig:{temperature:.4}}),signal:ctrl.signal});
+  const fail=async r=>{let m=await r.text();try{m=JSON.parse(m).error.message}catch(e){}
+    const e=new Error(r.status===429?"Free limit reached. Wait a minute and try again.":r.status===404?"Model not found. Open Setup and try gemini-2.5-flash.":r.status+": "+m);e.apiError=true;e.status=r.status;throw e};
+  const textOf=j=>{const p=j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts;return p?p.map(x=>x.text||"").join(""):""};
+  try{
+    let txt="";
+    try{
+      const r=await fetch(base+":streamGenerateContent?alt=sse",opts());
+      if(!r.ok)await fail(r);
+      const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
+      for(;;){const {done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;
+        while((i=buf.indexOf("\n"))>=0){const line=buf.slice(0,i).trim();buf=buf.slice(i+1);
+          if(line.startsWith("data:")){try{txt+=textOf(JSON.parse(line.slice(5)));onText(txt)}catch(e){}}}}
+    }catch(e){if(e.name==="AbortError"||e.apiError)throw e}
+    if(!txt){const r=await fetch(base+":generateContent",opts());if(!r.ok)await fail(r);txt=textOf(await r.json());onText(txt)}
+    if(!txt)throw new Error("Gemini returned an empty answer. Try again, or switch the model in Setup.");
+    return txt;
+  }catch(e){if(e.name==="AbortError")throw new Error("No reply after 90 seconds. Check your internet and try again.");if(e instanceof TypeError)throw new Error("Could not reach Google. If this page was opened from Files or Downloads (address starts with content:// or file://), the browser blocks it. Host the file on an https page such as GitHub Pages, or check your internet.");throw e}
+  finally{clearTimeout(timer)}}
+
+async function gemini(contents,onText){
+  const first=$("model").value.trim()||"gemini-3.8-flash";
+  const models=[...new Set([first,"gemini-2.5-flash","gemini-2.5-flash-lite"])];let last;
+  for(const m of models){for(let a=0;a<2;a++){
+    try{const t=await geminiOnce(contents,onText,m);if(m!==first)$("idx").textContent="Used "+m+" because "+first+" was busy or unavailable.";return t}
+    catch(e){last=e;if(!e.apiError)throw e;
+      if([500,502,503,504].includes(e.status)){await new Promise(r=>setTimeout(r,2000));continue}
+      if([404,429].includes(e.status))break;throw e}}}
+  throw last}
+
+$("go").onclick=async()=>{if(!pdf)return;$("err").textContent="";
+  const topic=$("tp").value.trim();let pages=parsePages($("pg").value).map(n=>n+offset());
+  $("go").disabled=true;$("res").hidden=false;$("out").innerHTML='<p class="small">Reading the page…</p>';$("fu").hidden=true;
+  try{await idxDone;
+    if(!pages.length&&topic)pages=hitsFor(topic).slice(0,2).map(x=>x[0]).sort((a,b)=>a-b);
+    pages=pages.filter(n=>n>=1&&n<=pdf.numPages);
+    if(!pages.length){$("out").innerHTML="";$("err").textContent="Enter a page number, or a topic that appears in the PDF.";return}
+    const body=pages.map(n=>"[PDF page "+n+"]\n"+texts[n]).join("\n\n"),scanned=body.replace(/\[PDF page \d+\]/g,"").trim().length<80;
+    const imgs=(scanned||$("vis").checked)?await Promise.all(pages.slice(0,2).map(pageB64)):[];
+    const task=`You are a patient structural-engineering teacher explaining a page from the file "${fileName}".
+${MODES[mode]}
+Write in: ${$("lang").value}. Keep clause numbers, symbols, and IS code names in their original form.
+${topic?`Focus on this point: "${topic}". Explain it fully, then briefly cover the rest of the page.`:"Explain every concept on the page, in the order it appears."}
+Rules: Base clause content ONLY on the page text/image provided; if you add outside knowledge, label it "Beyond this page:". Never invent clause numbers, values or table entries; say when something is unreadable.
+This is a textbook page the student is learning from. Format with markdown headings (##) and bullets, no tables, write equations in plain text/unicode with every symbol and unit defined. Sections: 1) Where this fits (what the topic builds on), 2) Concepts one by one, explaining the why and the physical intuition, 3) Key equations: derive each step by step, stating assumptions, 4) Worked example: if the page has one, walk through it line by line, otherwise make a short numeric one, 5) How it is used in design or practice, 6) Common doubts and mistakes, 7) Key points for revision. If the page has a figure, explain what it shows. Equations in extracted text may be garbled; when the page image is attached, trust the image for equations, figures and values.
+${imgs.length?"The page image(s) are attached. ":""}${scanned?"":"Page text follows (extracted from PDF; may have odd line breaks):\n\n"+body}`;
+    hist=[{role:"user",parts:[{text:task},...imgs.map(d=>({inline_data:{mime_type:"image/jpeg",data:d}}))]}];
+    $("out").innerHTML='<h2>PDF page '+pages.join(", ")+(topic?" · "+esc(topic):"")+'</h2>';
+    const holder=document.createElement("div");holder.innerHTML='<p class="small">Waiting for Gemini…</p>';$("out").append(holder);
+    const t=await gemini(hist,x=>{holder.innerHTML=md(x)});holder.innerHTML=md(t);
+    hist.push({role:"model",parts:[{text:t}]});$("fu").hidden=false;
+  }catch(e){if(e.name!=="AbortError")$("err").textContent=e.message||"Something went wrong."}
+  finally{$("go").disabled=false}};
+
+$("ask").onclick=async()=>{const q=$("q").value.trim();if(!q||!hist.length)return;$("q").value="";$("err").textContent="";$("ask").disabled=true;
+  const qd=document.createElement("div");qd.className="q";qd.textContent=q;$("out").append(qd);
+  const holder=document.createElement("div");$("out").append(holder);
+  hist.push({role:"user",parts:[{text:q+"\n\n(Same rules as before: stay grounded in the page, label outside knowledge, same level and language.)"}]});
+  try{const t=await gemini(hist,x=>{holder.innerHTML=md(x)});holder.innerHTML=md(t);hist.push({role:"model",parts:[{text:t}]})}
+  catch(e){hist.pop();if(e.name!=="AbortError")$("err").textContent=e.message||"Something went wrong."}
+  finally{$("ask").disabled=false}};
+$("q").onkeydown=e=>{if(e.key==="Enter")$("ask").click()};
+$("copy").onclick=async()=>{try{await navigator.clipboard.writeText($("out").innerText);$("copy").textContent="Copied"}catch(e){$("copy").textContent="Copy not allowed here"}setTimeout(()=>$("copy").textContent="Copy all",1500)};
+[["Derive step by step","Derive the main equations on this page step by step, showing every algebraic step and the assumption behind each."],["Practice problems","Give me 3 practice problems on this page, easy to hard, without answers yet. I will attempt them."],["Quiz me","Quiz me with 5 short conceptual questions on this page, one at a time. Wait for my answer before the next one."],["Revision notes","Make compact revision notes for this page: definitions, equations, and 5 points to remember."],["Explain simpler","Explain the hardest idea on this page again in simpler words, with an analogy."]].forEach(([l,p])=>{const b=document.createElement("button");b.className="chip";b.textContent=l;b.onclick=()=>{$("q").value=p;$("ask").click()};$("acts").append(b)});
+</script></body></html>
